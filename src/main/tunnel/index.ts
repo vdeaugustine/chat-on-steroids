@@ -631,6 +631,15 @@ async function startCloudflared(opts: TunnelStartOptions): Promise<TunnelHandle>
 
   opts.report({ state: 'connecting-tunnel', detail: 'Starting cloudflared…' });
 
+  // Opt-in for external tooling: a script that wants the quick-tunnel URL without
+  // driving the renderer (see scripts/quick-cloudflare-tunnel.sh) points this at a
+  // path and polls it, the same way tunnel-client's own --health.url-file works for
+  // the OpenAI adapter above. Unset by default, so nothing changes for the app's UI.
+  const urlFile = process.env['CLF_TUNNEL_URL_FILE'];
+  const clearUrlFile = (): void => {
+    if (urlFile) void fs.rm(urlFile, { force: true }).catch(() => {});
+  };
+
   const child = spawn(binary, args, {
     windowsHide: true,
     detached: process.platform !== 'win32',
@@ -650,6 +659,7 @@ async function startCloudflared(opts: TunnelStartOptions): Promise<TunnelHandle>
       settled = true;
       const publicUrl = `${match[0]}${local.pathname}`;
       logInfo('quick tunnel connected');
+      if (urlFile) void fs.writeFile(urlFile, publicUrl, 'utf8').catch(() => {});
       opts.report({
         state: 'connected',
         detail: 'Connected. Paste the URL below into ChatGPT as a custom connector.',
@@ -669,6 +679,7 @@ async function startCloudflared(opts: TunnelStartOptions): Promise<TunnelHandle>
   child.on('exit', (code) => {
     if (stopped) return;
     settled = true;
+    clearUrlFile();
     opts.report({
       state: 'tunnel-unavailable',
       detail: lastError || `cloudflared stopped (exit ${code}).`
@@ -676,6 +687,7 @@ async function startCloudflared(opts: TunnelStartOptions): Promise<TunnelHandle>
   });
   child.on('error', (err) => {
     settled = true;
+    clearUrlFile();
     opts.report({ state: 'tunnel-unavailable', detail: `Could not start cloudflared: ${err.message}` });
   });
 
@@ -693,6 +705,7 @@ async function startCloudflared(opts: TunnelStartOptions): Promise<TunnelHandle>
     stop: async () => {
       stopped = true;
       clearTimeout(startupTimer);
+      clearUrlFile();
       await stopTree(child);
     }
   };

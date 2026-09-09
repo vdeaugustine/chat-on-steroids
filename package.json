@@ -52,6 +52,16 @@
     "tree-sitter-bash": "0.25.1",
     "zod": "^4.4.3"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild",
+      "node-pty",
+      "sharp",
+      "tree-sitter",
+      "tree-sitter-bash"
+    ]
+  },
   "devDependencies": {
     "@types/jsdom": "^30.0.0",
     "@types/node": "^22.15.0",
