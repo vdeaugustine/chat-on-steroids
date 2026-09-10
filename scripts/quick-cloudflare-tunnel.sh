@@ -23,6 +23,15 @@
 # This script is specific to this repo (it patches this app's own config and
 # launches its own dev server) — unlike a generic tunnel helper, it isn't meant to
 # be copied to other projects.
+#
+# Electron only allows one running copy of this app per user-data dir, so if a copy
+# is already running (started by hand, by an IDE task, or by a previous run of this
+# script), a second one launched here would immediately quit. `start` checks for
+# that first — scripts/cleanup-chat-on-steroids.sh lists/stops running copies of
+# THIS app specifically; it never touches an unrelated app.
+#
+# Port 5173 (the dev-mode Vite server) is separate from that: electron-vite already
+# picks the next free port on its own if 5173 is taken, without killing anything.
 
 set -euo pipefail
 
@@ -40,6 +49,23 @@ case "$(uname -s)" in
 esac
 APP_CONFIG_DIR="${CLF_APP_CONFIG_DIR:-$APP_CONFIG_DIR}"
 CONFIG_FILE="$APP_CONFIG_DIR/config.json"
+
+# Same patterns as cleanup-chat-on-steroids.sh: only ever matches this app's own
+# binaries (this repo's path, or the packaged app's product name/appId), never a
+# generic term that could catch some other app.
+APP_PATTERNS=(
+  "$REPO_DIR/node_modules/.*/electron/dist/Electron.app"
+  "$REPO_DIR/node_modules/.*electron-vite/bin/electron-vite.js"
+  "Chat On Steroids\.app/Contents/MacOS/Chat On Steroids"
+)
+
+other_instance_pids() {
+  local all=""
+  for pattern in "${APP_PATTERNS[@]}"; do
+    all="$all $(pgrep -f "$pattern" 2>/dev/null || true)"
+  done
+  echo "$all" | tr ' ' '\n' | grep -E '^[0-9]+$' | sort -un || true
+}
 
 usage() {
   cat <<'EOF'
@@ -77,6 +103,18 @@ patch_config() {
 cmd_start() {
   if is_running; then
     echo "Already running (pid $(cat "$PID_FILE")). Run 'stop' first, or 'status' to see the URL."
+    exit 1
+  fi
+
+  running_elsewhere="$(other_instance_pids)"
+  if [ -n "$running_elsewhere" ]; then
+    echo "Chat On Steroids is already running (started outside this script), so a second"
+    echo "copy would immediately quit — it only allows one instance at a time. Process(es):"
+    for pid in $running_elsewhere; do
+      ps -p "$pid" -o pid=,etime=,command= 2>/dev/null | sed 's/^/  /' || true
+    done
+    echo ""
+    echo "Stop it first: scripts/cleanup-chat-on-steroids.sh"
     exit 1
   fi
 

@@ -58,6 +58,9 @@ const ALLOWED_LINKS = new Set([
   // ChatGPT renamed this page from Connectors to Apps and the button followed it; the
   // allowlist did not, so "Open Apps" had been refused here ever since.
   'https://chatgpt.com/#settings/Apps',
+  // Jumps straight into the "create a connector" modal instead of leaving the user to
+  // find it from the Apps list themselves.
+  'https://chatgpt.com/plugins#settings/Connectors?create-connector=true&redirectAfter=%2Fplugins',
   'https://platform.openai.com/settings/organization/tunnels',
   'https://platform.openai.com/settings/organization/api-keys',
   'https://github.com/openai/tunnel-client/releases',
